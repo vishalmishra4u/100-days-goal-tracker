@@ -1,0 +1,362 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>100-Day Goal Tracker — Dashboard</title>
+    <style>
+      :root {
+        --bg: #f5f6f8;
+        --card: #fff;
+        --text: #1f2937;
+        --muted: #6b7280;
+        --primary: #2563eb;
+        --primary-2: #1e40af;
+        --green: #16a34a;
+        --red: #ef4444;
+        --border: #e5e7eb;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        background: var(--bg);
+        color: var(--text);
+        font-family: system-ui, -apple-system, Segoe UI, Roboto, Ubuntu,
+          "Helvetica Neue", Arial;
+      }
+      header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 14px 18px;
+        background: #111827;
+        color: #fff;
+      }
+      header h1 {
+        margin: 0;
+        font-size: 18px;
+        font-weight: 600;
+      }
+      header .add-btn {
+        background: var(--primary);
+        border: none;
+        color: #fff;
+        padding: 8px 12px;
+        border-radius: 8px;
+        cursor: pointer;
+      }
+      header .add-btn:hover {
+        background: var(--primary-2);
+      }
+      .container {
+        max-width: 1000px;
+        margin: 20px auto;
+        padding: 0 16px;
+      }
+      .list {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+        gap: 16px;
+      }
+      .card {
+        background: var(--card);
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        padding: 14px;
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+      }
+      .card h3 {
+        margin: 0 0 2px 0;
+        font-size: 18px;
+      }
+      .meta {
+        font-size: 13px;
+        color: var(--muted);
+      }
+      .row {
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+      }
+      .btn {
+        border: none;
+        border-radius: 8px;
+        padding: 8px 10px;
+        cursor: pointer;
+      }
+      .btn.view {
+        background: var(--green);
+        color: #fff;
+      }
+      .btn.edit {
+        background: #fbbf24;
+        color: #111827;
+      }
+      .btn.delete {
+        background: var(--red);
+        color: #fff;
+      }
+      /* Modal */
+      .overlay {
+        position: fixed;
+        inset: 0;
+        background: rgba(0, 0, 0, 0.45);
+        display: none;
+        align-items: center;
+        justify-content: center;
+        padding: 16px;
+        z-index: 50;
+      }
+      .modal {
+        width: 100%;
+        max-width: 380px;
+        background: #fff;
+        border-radius: 14px;
+        border: 1px solid var(--border);
+        padding: 16px;
+      }
+      .modal h2 {
+        margin: 0 0 8px 0;
+      }
+      .field {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+        margin: 8px 0;
+      }
+      .field label {
+        font-size: 14px;
+      }
+      .field input {
+        padding: 10px;
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        font-size: 14px;
+      }
+      .muted {
+        font-size: 12px;
+        color: var(--muted);
+      }
+      .modal .actions {
+        display: flex;
+        gap: 8px;
+        justify-content: flex-end;
+        margin-top: 12px;
+      }
+      .ghost {
+        background: #eef2ff;
+        color: #1e3a8a;
+      }
+      .hidden {
+        display: none;
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <h1>100-Day Goal Tracker — Dashboard</h1>
+      <button class="add-btn" id="openAdd">+ Add Goal</button>
+    </header>
+
+    <main class="container">
+      <div id="emptyState" class="muted" style="margin: 12px 4px 18px 4px">
+        No goals yet. Click “+ Add Goal” to create your first goal.
+      </div>
+      <section class="list" id="goalList"></section>
+    </main>
+
+    <!-- Modal -->
+    <div class="overlay" id="overlay">
+      <div class="modal">
+        <h2 id="modalTitle">Add Goal</h2>
+        <div class="field">
+          <label for="titleInput">Goal Title</label>
+          <input
+            id="titleInput"
+            type="text"
+            placeholder="e.g., Monetize YouTube channel"
+          />
+        </div>
+        <div class="field">
+          <label for="startInput">Start Date</label>
+          <input id="startInput" type="date" />
+        </div>
+        <div class="muted" id="endPreview"></div>
+        <div class="actions">
+          <button class="btn ghost" id="cancelBtn">Cancel</button>
+          <button class="btn view" id="saveBtn">Save</button>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      /* ---------- Storage & Utilities ---------- */
+      const LS_KEY = "goals_v1";
+      function loadGoals() {
+        try {
+          return JSON.parse(localStorage.getItem(LS_KEY)) || [];
+        } catch {
+          return [];
+        }
+      }
+      function saveGoals(goals) {
+        localStorage.setItem(LS_KEY, JSON.stringify(goals));
+      }
+      function generateId() {
+        return Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+      }
+
+      /* Inclusive end date = start + 99 days (100 total) */
+      function calcEndDateStr(startStr) {
+        const d = new Date(startStr);
+        if (Number.isNaN(d.getTime())) return "";
+        const end = new Date(d);
+        end.setDate(end.getDate() + 99);
+        return end.toISOString().slice(0, 10);
+      }
+
+      /* ---------- State ---------- */
+      let goals = loadGoals(); // [{id,title,start,end,progress:boolean[100]}]
+      let editingId = null;
+
+      /* ---------- DOM ---------- */
+      const goalList = document.getElementById("goalList");
+      const emptyState = document.getElementById("emptyState");
+      const overlay = document.getElementById("overlay");
+      const modalTitle = document.getElementById("modalTitle");
+      const titleInput = document.getElementById("titleInput");
+      const startInput = document.getElementById("startInput");
+      const endPreview = document.getElementById("endPreview");
+      const openAdd = document.getElementById("openAdd");
+      const cancelBtn = document.getElementById("cancelBtn");
+      const saveBtn = document.getElementById("saveBtn");
+
+      /* ---------- Render ---------- */
+      function render() {
+        goalList.innerHTML = "";
+        emptyState.classList.toggle("hidden", goals.length > 0);
+        goals.forEach((g) => {
+          // Ensure progress exists
+          if (!Array.isArray(g.progress) || g.progress.length !== 100) {
+            g.progress = Array(100).fill(false);
+          }
+          const doneCount = g.progress.filter(Boolean).length;
+
+          const card = document.createElement("div");
+          card.className = "card";
+
+          const h3 = document.createElement("h3");
+          h3.textContent = g.title;
+
+          const dates = document.createElement("div");
+          dates.className = "meta";
+          dates.textContent = `Start: ${g.start}  •  End: ${g.end}`;
+
+          const prog = document.createElement("div");
+          prog.className = "meta";
+          prog.textContent = `${doneCount}/100 days done`;
+
+          const row = document.createElement("div");
+          row.className = "row";
+
+          const viewBtn = document.createElement("button");
+          viewBtn.className = "btn view";
+          viewBtn.textContent = "View";
+          viewBtn.onclick = () =>
+            (window.location.href = `goal.html?id=${encodeURIComponent(g.id)}`);
+
+          const editBtn = document.createElement("button");
+          editBtn.className = "btn edit";
+          editBtn.textContent = "Edit";
+          editBtn.onclick = () => openModal("edit", g.id);
+
+          const delBtn = document.createElement("button");
+          delBtn.className = "btn delete";
+          delBtn.textContent = "Delete";
+          delBtn.onclick = () => {
+            if (confirm("Delete this goal? This cannot be undone.")) {
+              goals = goals.filter((x) => x.id !== g.id);
+              saveGoals(goals);
+              render();
+            }
+          };
+
+          row.append(viewBtn, editBtn, delBtn);
+          card.append(h3, dates, prog, row);
+          goalList.appendChild(card);
+        });
+      }
+
+      /* ---------- Modal ---------- */
+      function openModal(mode, id = null) {
+        editingId = null;
+        titleInput.value = "";
+        startInput.value = "";
+        endPreview.textContent = "";
+
+        if (mode === "add") {
+          modalTitle.textContent = "Add Goal";
+        } else {
+          modalTitle.textContent = "Edit Goal";
+          const g = goals.find((x) => x.id === id);
+          if (!g) return;
+          editingId = g.id;
+          titleInput.value = g.title;
+          startInput.value = g.start;
+          endPreview.textContent = `End Date (auto): ${g.end}`;
+        }
+        overlay.style.display = "flex";
+        titleInput.focus();
+      }
+      function closeModal() {
+        overlay.style.display = "none";
+      }
+
+      startInput.addEventListener("input", () => {
+        const end = calcEndDateStr(startInput.value);
+        endPreview.textContent = end ? `End Date (auto): ${end}` : "";
+      });
+
+      openAdd.addEventListener("click", () => openModal("add"));
+      cancelBtn.addEventListener("click", closeModal);
+
+      saveBtn.addEventListener("click", () => {
+        const title = titleInput.value.trim();
+        const start = startInput.value;
+        if (!title || !start) {
+          alert("Please enter title and start date.");
+          return;
+        }
+        const end = calcEndDateStr(start);
+
+        if (editingId) {
+          const g = goals.find((x) => x.id === editingId);
+          if (g) {
+            g.title = title;
+            g.start = start;
+            g.end = end;
+            // keep progress as-is
+          }
+        } else {
+          goals.push({
+            id: generateId(),
+            title,
+            start,
+            end,
+            progress: Array(100).fill(false),
+          });
+        }
+        saveGoals(goals);
+        closeModal();
+        render();
+      });
+
+      /* ---------- Init ---------- */
+      render();
+    </script>
+  </body>
+</html>

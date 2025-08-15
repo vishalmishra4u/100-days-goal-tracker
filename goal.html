@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>100-Day Goal Tracker — Goal</title>
+    <style>
+      :root {
+        --bg: #f5f6f8;
+        --card: #fff;
+        --text: #1f2937;
+        --muted: #6b7280;
+        --green: #16a34a;
+        --border: #e5e7eb;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        background: var(--bg);
+        color: var(--text);
+        font-family: system-ui, -apple-system, Segoe UI, Roboto, Ubuntu,
+          "Helvetica Neue", Arial;
+      }
+      header {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 12px 14px;
+        background: #111827;
+        color: #fff;
+      }
+      header a {
+        color: #fff;
+        text-decoration: none;
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        padding: 6px 10px;
+        border-radius: 8px;
+      }
+      .container {
+        max-width: 1000px;
+        margin: 18px auto;
+        padding: 0 16px;
+      }
+      h2 {
+        margin: 0 0 6px 0;
+      }
+      .meta {
+        color: var(--muted);
+        font-size: 14px;
+        margin-bottom: 12px;
+      }
+      .grid {
+        display: grid;
+        grid-template-columns: repeat(10, 1fr);
+        gap: 6px;
+      }
+      .cell {
+        background: #fff;
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        height: 44px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        user-select: none;
+        font-size: 14px;
+      }
+      .cell.done {
+        background: var(--green);
+        color: #fff;
+        border-color: var(--green);
+      }
+      .footer {
+        margin: 16px 2px 24px 2px;
+        color: var(--muted);
+        font-size: 14px;
+      }
+      @media (max-width: 640px) {
+        .cell {
+          height: 38px;
+          font-size: 13px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <a href="index.html">← Back</a>
+      <div>Goal Detail</div>
+    </header>
+
+    <main class="container">
+      <h2 id="goalTitle">Goal</h2>
+      <div class="meta" id="dateMeta">Dates</div>
+
+      <section class="grid" id="grid"></section>
+
+      <div class="footer" id="progressText"></div>
+    </main>
+
+    <script>
+      const LS_KEY = "goals_v1";
+      function loadGoals() {
+        try {
+          return JSON.parse(localStorage.getItem(LS_KEY)) || [];
+        } catch {
+          return [];
+        }
+      }
+      function saveGoals(g) {
+        localStorage.setItem(LS_KEY, JSON.stringify(g));
+      }
+
+      function getParam(name) {
+        const u = new URL(window.location.href);
+        return u.searchParams.get(name);
+      }
+
+      function startOfDay(d) {
+        const x = new Date(d);
+        x.setHours(0, 0, 0, 0);
+        return x;
+      }
+      function clamp(n, min, max) {
+        return Math.min(Math.max(n, min), max);
+      }
+
+      let goals = loadGoals();
+      const id = getParam("id");
+      const goal = goals.find((g) => String(g.id) === String(id));
+
+      if (!goal) {
+        alert("Goal not found.");
+        window.location.href = "index.html";
+      }
+
+      /* Ensure progress exists & length is 100 */
+      if (!Array.isArray(goal.progress) || goal.progress.length !== 100) {
+        goal.progress = Array(100).fill(false);
+        saveGoals(goals);
+      }
+
+      /* Header info */
+      document.getElementById("goalTitle").textContent = `Goal: ${goal.title}`;
+      document.getElementById(
+        "dateMeta"
+      ).textContent = `Start: ${goal.start} • End: ${goal.end}`;
+
+      /* Build 10x10 grid */
+      const grid = document.getElementById("grid");
+      grid.innerHTML = "";
+      for (let i = 0; i < 100; i++) {
+        const cell = document.createElement("div");
+        cell.className = "cell" + (goal.progress[i] ? " done" : "");
+        cell.textContent = i + 1;
+        cell.addEventListener("click", () => {
+          goal.progress[i] = !goal.progress[i]; // toggle complete/not complete
+          cell.classList.toggle("done", goal.progress[i]);
+          saveGoals(goals);
+          updateProgressText();
+        });
+        grid.appendChild(cell);
+      }
+
+      /* Progress up to TODAY (from start date) */
+      function updateProgressText() {
+        const today = startOfDay(new Date());
+        const start = startOfDay(goal.start);
+        let elapsed = Math.floor((today - start) / (1000 * 60 * 60 * 24)) + 1; // inclusive of start day
+        elapsed = clamp(elapsed, 0, 100);
+
+        const done = goal.progress.slice(0, elapsed).filter(Boolean).length;
+        const pct = elapsed > 0 ? Math.round((done / elapsed) * 100) : 0;
+
+        const text =
+          elapsed === 0
+            ? `Progress up to today: 0/0 (0%) — your plan starts on ${goal.start}.`
+            : `Progress up to today: ${done}/${elapsed} (${pct}%).`;
+
+        document.getElementById("progressText").textContent = text;
+      }
+      updateProgressText();
+    </script>
+  </body>
+</html>

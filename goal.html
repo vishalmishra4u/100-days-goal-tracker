@@ -11,6 +11,7 @@
         --text: #1f2937;
         --muted: #6b7280;
         --green: #16a34a;
+        --red: #dc2626;
         --border: #e5e7eb;
       }
       * {
@@ -72,6 +73,11 @@
         background: var(--green);
         color: #fff;
         border-color: var(--green);
+      }
+      .cell.missed {
+        background: var(--red);
+        color: #fff;
+        border-color: var(--red);
       }
       .footer {
         margin: 16px 2px 24px 2px;
@@ -139,7 +145,7 @@
 
       /* Ensure progress exists & length is 100 */
       if (!Array.isArray(goal.progress) || goal.progress.length !== 100) {
-        goal.progress = Array(100).fill(false);
+        goal.progress = Array(100).fill("");
         saveGoals(goals);
       }
 
@@ -154,11 +160,25 @@
       grid.innerHTML = "";
       for (let i = 0; i < 100; i++) {
         const cell = document.createElement("div");
-        cell.className = "cell" + (goal.progress[i] ? " done" : "");
+        cell.className = "cell";
+        if (goal.progress[i] === "done") cell.classList.add("done");
+        if (goal.progress[i] === "missed") cell.classList.add("missed");
         cell.textContent = i + 1;
+
         cell.addEventListener("click", () => {
-          goal.progress[i] = !goal.progress[i]; // toggle complete/not complete
-          cell.classList.toggle("done", goal.progress[i]);
+          // cycle through states: "" → "done" → "missed" → ""
+          if (goal.progress[i] === "") {
+            goal.progress[i] = "done";
+          } else if (goal.progress[i] === "done") {
+            goal.progress[i] = "missed";
+          } else {
+            goal.progress[i] = "";
+          }
+
+          cell.classList.remove("done", "missed");
+          if (goal.progress[i] === "done") cell.classList.add("done");
+          if (goal.progress[i] === "missed") cell.classList.add("missed");
+
           saveGoals(goals);
           updateProgressText();
         });
@@ -172,7 +192,9 @@
         let elapsed = Math.floor((today - start) / (1000 * 60 * 60 * 24)) + 1; // inclusive of start day
         elapsed = clamp(elapsed, 0, 100);
 
-        const done = goal.progress.slice(0, elapsed).filter(Boolean).length;
+        const done = goal.progress
+          .slice(0, elapsed)
+          .filter((v) => v === "done").length;
         const pct = elapsed > 0 ? Math.round((done / elapsed) * 100) : 0;
 
         const text =

@@ -154,6 +154,23 @@
       .hidden {
         display: none;
       }
+      .card {
+        background: var(--card);
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        padding: 14px;
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+        transition: background 0.3s ease;
+      }
+      .card.today-done {
+        background: #8cf3c3; /* very light green */
+      }
+      .btn.done {
+        background: #22c55e;
+        color: #fff;
+      }
     </style>
   </head>
   <body>
@@ -357,6 +374,92 @@
 
       /* ---------- Init ---------- */
       render();
+      function startOfDay(d) {
+        const x = new Date(d);
+        x.setHours(0, 0, 0, 0);
+        return x;
+      }
+
+      function dayIndexFromStart(startDateStr) {
+        const start = startOfDay(new Date(startDateStr));
+        const today = startOfDay(new Date());
+        return Math.floor((today - start) / (1000 * 60 * 60 * 24));
+      }
+
+      /* ---------- Render ---------- */
+      function render() {
+        goalList.innerHTML = "";
+        emptyState.classList.toggle("hidden", goals.length > 0);
+        goals.forEach((g) => {
+          if (!Array.isArray(g.progress) || g.progress.length !== 100) {
+            g.progress = Array(100).fill("");
+          }
+          const doneCount = g.progress.filter((v) => v === "done").length;
+
+          const card = document.createElement("div");
+          card.className = "card";
+
+          // check if today is marked done
+          const idx = dayIndexFromStart(g.start);
+          if (idx >= 0 && idx < 100 && g.progress[idx] === "done") {
+            card.classList.add("today-done");
+          }
+
+          const h3 = document.createElement("h3");
+          h3.textContent = g.title;
+
+          const dates = document.createElement("div");
+          dates.className = "meta";
+          dates.textContent = `Start: ${g.start}  •  End: ${g.end}`;
+
+          const prog = document.createElement("div");
+          prog.className = "meta";
+          prog.textContent = `${doneCount}/100 days done`;
+
+          const row = document.createElement("div");
+          row.className = "row";
+
+          const viewBtn = document.createElement("button");
+          viewBtn.className = "btn view";
+          viewBtn.textContent = "View";
+          viewBtn.onclick = () =>
+            (window.location.href = `goal.html?id=${encodeURIComponent(g.id)}`);
+
+          const doneBtn = document.createElement("button");
+          doneBtn.className = "btn done";
+          doneBtn.textContent = "Done Today";
+          doneBtn.onclick = () => {
+            const idx = dayIndexFromStart(g.start);
+            if (idx < 0 || idx >= 100) {
+              alert("Today is outside this goal’s 100 days.");
+              return;
+            }
+            g.progress[idx] = "done";
+            saveGoals(goals);
+            render();
+          };
+
+          const editBtn = document.createElement("button");
+          editBtn.className = "btn edit";
+          editBtn.textContent = "Edit";
+          editBtn.onclick = () => openModal("edit", g.id);
+
+          const delBtn = document.createElement("button");
+          delBtn.className = "btn delete";
+          delBtn.textContent = "Delete";
+          delBtn.onclick = () => {
+            if (confirm("Delete this goal? This cannot be undone.")) {
+              goals = goals.filter((x) => x.id !== g.id);
+              saveGoals(goals);
+              render();
+            }
+          };
+
+          row.append(viewBtn, doneBtn, editBtn, delBtn);
+          card.append(h3, dates, prog, row);
+          goalList.appendChild(card);
+        });
+      }
     </script>
   </body>
 </html>
